@@ -11,4 +11,4 @@ def convert_all(curr_path='noise', des_path='noise/wav', filter='mp3', new_ext='
         name=os.path.splitext(os.path.basename(src))[0]
         dst=os.path.join(des_path,name+ new_ext)
         state=convert_mp3_to_wav(src,dst)
-        # print(src,dst)
+        

@@ -11,6 +11,8 @@ class AudioFile(Base):
     file_path=Column(String)
     date_of_upload=Column(DateTime,default=datetime.utcnow, nullable=False )
     file_extension=Column(String)
+
+
 if __name__ == "__main__":
     engine=create_engine('sqlite:///audio_database.sqlite3')    # this create an empty database
     Base.metadata.create_all(engine)                            # this create all the tables and their columns inside our database.

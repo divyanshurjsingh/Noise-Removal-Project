@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
 # option = st.selectbox('Select Functions?',('Noise Removal','Analysis'))
 # st.write('You selected:', option)
-# if option=='Noise Removal':
+# if option=='Analysis':
 #    btnclicked=st.button('start processing)
 # elif option=='Noise Removal':
 #    new_opt=st.selectbox('choose the noise you want to remove', ('Fan','Traffic','Rain','Wind','Turbine'))
