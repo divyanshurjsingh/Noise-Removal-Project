@@ -6,6 +6,63 @@ import librosa
 import time
 from datetime import timedelta as td
 
+def _stft(y, n_fft, hop_length, win_length):
+    return librosa.stft(y=y, n_fft=n_fft, hop_length=hop_length, win_length=win_length)
+
+def fftnoise(f):
+    f = np.array(f, dtype="complex")
+    Np = (len(f) - 1) // 2
+    phases = np.random.rand(Np) * 2 * np.pi
+    phases = np.cos(phases) + 1j * np.sin(phases)
+    f[1 : Np + 1] *= phases
+    f[-1 : -1 - Np : -1] = np.conj(f[1 : Np + 1])
+    return np.fft.ifft(f).real
+
+
+def band_limited_noise(min_freq, max_freq, samples=1024, samplerate=1):
+    freqs = np.abs(np.fft.fftfreq(samples, 1 / samplerate))
+    f = np.zeros(samples)
+    f[np.logical_and(freqs >= min_freq, freqs <= max_freq)] = 1
+    return fftnoise(f)
+
+def _istft(y, hop_length, win_length):
+    return librosa.istft(y, hop_length, win_length)
+
+def _amp_to_db(x):
+    return librosa.core.amplitude_to_db(x, ref=1.0, amin=1e-20, top_db=80.0)
+
+def _db_to_amp(x,):
+    return librosa.core.db_to_amplitude(x, ref=1.0)
+
+def plot_spectrogram(signal, title):
+    fig, ax = plt.subplots(figsize=(20, 4))
+    cax = ax.matshow(
+        signal,
+        origin="lower",
+        aspect="auto",
+        cmap=plt.cm.seismic,
+        vmin=-1 * np.max(np.abs(signal)),
+        vmax=np.max(np.abs(signal)),
+    )
+    fig.colorbar(cax)
+    ax.set_title(title)
+    plt.tight_layout()
+    plt.show()
+
+def plot_statistics_and_filter(mean_freq_noise, std_freq_noise, noise_thresh, smoothing_filter):
+    fig, ax = plt.subplots(ncols=2, figsize=(20, 4))
+    plt_mean, = ax[0].plot(mean_freq_noise, label="Mean power of noise")
+    plt_std, = ax[0].plot(std_freq_noise, label="Std. power of noise")
+    plt_std, = ax[0].plot(noise_thresh, label="Noise threshold (by frequency)")
+    ax[0].set_title("Threshold for mask")
+    ax[0].legend()
+    cax = ax[1].matshow(smoothing_filter, origin="lower")
+    fig.colorbar(cax)
+    ax[1].set_title("Filter for smoothing Mask")
+    plt.show()
+
+
+
 
 def removeNoise(audio_clip,noise_clip,n_grad_freq=2,n_grad_time=4,n_fft=2048,win_length=2048,hop_length=512,n_std_thresh=1.5,prop_decrease=1.0,verbose=False,visual=False):
     """Remove noise from audio based upon a clip containing only noise
@@ -21,7 +78,7 @@ def removeNoise(audio_clip,noise_clip,n_grad_freq=2,n_grad_time=4,n_fft=2048,win
         n_std_thresh (int): how many standard deviations louder than the mean dB of the noise (at each frequency level) to be considered signal
         prop_decrease (float): To what extent should you decrease noise (1 = all, 0 = none)
         visual (bool): Whether to plot the steps of the algorithm
-
+        Setting verbose to True in the configuration will result in the service generating more output
     Returns:
         array: The recovered signal with noise subtracted
 

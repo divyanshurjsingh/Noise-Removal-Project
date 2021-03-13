@@ -9,8 +9,11 @@ from audio_db import AudioFile
 from sqlalchemy import create_engine
 import streamlit as st
 import os
+from helper import convert_mp3_to_wav
 import analyser as m
 import SessionState
+from scipy.io import wavfile
+from noise_remover import removeNoise
 
 # data base code
 engine=create_engine('sqlite:///audio_database.sqlite3') 
@@ -29,6 +32,8 @@ btnclicked= st.sidebar.button("Upload Audio File")
 
 noise_picked = None
 state = SessionState.get(name='')                       # initially the name variable we keep empty
+audio_clip = SessionState.get(audio='')
+
 if btnclicked and upload:
     data=upload.read()
     name=upload.name                                    # here we assinged our empty name variable to name of the file uploaded.
@@ -55,6 +60,7 @@ if name:
 
 
     audio_file = os.path.join(UPLOAD_DIR,name)
+    SessionState.audio = audio_file
     st.sidebar.text(f'file at : {audio_file}')
     st.audio(audio_file)
     st.subheader('step 2')
@@ -105,13 +111,28 @@ if name:
         noise_picked = noise_files.get(noise)
         st.audio(noise_picked)
 
+audio_clip = SessionState.audio
+
 if name and noise_picked and os.path.exists(noise_picked):
     st.subheader('step 4')
-    processbtn = st.button('Remove Noise from Audio')
     st.warning('Processor intensive step, this will take a lot of time!!')
-
+    n_std_thresh = st.slider('how many frequency channels to smooth over with the mask',min_value=1,max_value=3,value=2)
+    prop_decrease = st.slider('To what extent should you decrease noise',min_value=0.0,max_value=1.0,value=0.95)
+    processbtn = st.button('Remove Noise from Audio')
+    convert_mp3_to_wav(audio_clip,'out.wav')
     if processbtn:
-        st.write('working on it')
+        rate, data = wavfile.read('out.wav')
+        noise_rate, noisedata = wavfile.read(noise_picked)
+        noisedata = noisedata.astype(np.float) # convertedArray = sampleArray.astype(np.float)
+        st.write(f'working on {name} {audio_clip} {type(data)} {type(noisedata)} {noisedata.dtype}')
+        output = removeNoise(
+            audio_clip=data,
+            noise_clip=noisedata,
+            n_std_thresh = n_std_thresh,
+            prop_decrease=prop_decrease,
+            visual=False,
+        )
+        st.write(output)
 
 
         
