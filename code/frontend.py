@@ -14,6 +14,7 @@ import analyser as m
 import SessionState
 from scipy.io import wavfile
 from noise_remover import removeNoise
+import soundfile as sf
 
 # data base code
 engine=create_engine('sqlite:///audio_database.sqlite3') 
@@ -111,29 +112,51 @@ if name:
         noise_picked = noise_files.get(noise)
         st.audio(noise_picked)
 
-audio_clip = SessionState.audio
 
 if name and noise_picked and os.path.exists(noise_picked):
+    audio_clip = SessionState.audio
     st.subheader('step 4')
     st.warning('Processor intensive step, this will take a lot of time!!')
-    n_std_thresh = st.slider('how many frequency channels to smooth over with the mask',min_value=1,max_value=3,value=2)
+
+    n_grad_freq = st.slider('how many frequency channels to smooth over with the mask',min_value=0, max_value=10, value=2)
+    n_std_thresh = st.slider('how many standard deviations louder than the mean dB of the noise (at each frequency level) to be considered signal',min_value=1.0,max_value=5.0,step=.5,value=1.15)
     prop_decrease = st.slider('To what extent should you decrease noise',min_value=0.0,max_value=1.0,value=0.95)
+    
+
     processbtn = st.button('Remove Noise from Audio')
     convert_mp3_to_wav(audio_clip,'out.wav')
     if processbtn:
-        rate, data = wavfile.read('out.wav')
-        noise_rate, noisedata = wavfile.read(noise_picked)
-        noisedata = noisedata.astype(np.float) # convertedArray = sampleArray.astype(np.float)
-        st.write(f'working on {name} {audio_clip} {type(data)} {type(noisedata)} {noisedata.dtype}')
-        output = removeNoise(
-            audio_clip=data,
-            noise_clip=noisedata,
-            n_std_thresh = n_std_thresh,
-            prop_decrease=prop_decrease,
-            visual=False,
-        )
-        st.write(output)
-
-
+        data, rate = sf.read('out.wav')
+        ndata, nrate = sf.read(noise_picked)
         
-    
+
+        if len(data.shape)==1:
+            pass
+        elif len(data.shape)==2:
+            data=data[:,1]
+        else:
+            st.error("Audio file error")
+        if len(ndata.shape)==1:
+            pass
+        elif len(ndata.shape)==2:
+            ndata=ndata[:,1]
+        else:
+            st.error("Noise file error")
+
+        try:
+            with st.spinner("working"):
+                output = removeNoise(
+                    audio_clip=data,
+                    noise_clip=ndata,
+                    n_std_thresh = n_std_thresh,
+                    prop_decrease=prop_decrease,
+                    visual=False,
+                    n_grad_freq = n_grad_freq,
+                )
+                sf.write("results.wav",output, rate, 'PCM_24')
+                if os.path.exists('results.wav'):
+                    st.header('Noise reduced in file')
+                    st.audio('results.wav')  
+        except Exception as e:
+            st.error(e)
+            st.error('Retry, with different files') 
