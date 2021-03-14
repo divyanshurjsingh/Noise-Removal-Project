@@ -15,21 +15,25 @@ import SessionState
 from scipy.io import wavfile
 from noise_remover import removeNoise
 import soundfile as sf
+import pandas as pd
 
 # data base code
 engine=create_engine('sqlite:///audio_database.sqlite3') 
 Session=sessionmaker(bind=engine)   # connects to database
 sess=Session()
 
-
+# folders
 BASE_DIR = os.path.join('C:\\','Users','divya','OneDrive','Desktop','Noise Removal Project') 
 UPLOAD_DIR = os.path.join(BASE_DIR,'uploads')
 NOISE_DIR = os.path.join(BASE_DIR,'noise','wav')
+CLEAN_AUDIO_DIR =  os.path.join(BASE_DIR,'cleaned_audio')
+TEMP_FILE = os.path.join(BASE_DIR,'temp','out.wav')
 
 st.title("Noise removal application")
 st.sidebar.title("Audio Uploader")
 upload= st.sidebar.file_uploader("select an audio file")
 btnclicked= st.sidebar.button("Upload Audio File")
+
 
 noise_picked = None
 state = SessionState.get(name='')                       # initially the name variable we keep empty
@@ -69,6 +73,7 @@ if name:
     if option == 'Audio Visualization':
         st.subheader('step 3')
         choice=st.selectbox('choose a visualization',('click here to select','waveform','spectrogram','spectrum','MFCC'))
+        st.write(name)
         if choice=='waveform' and name:
             x,sr=librosa.load(audio_file)
             fig,ax=plt.subplots()                            
@@ -119,14 +124,15 @@ if name and noise_picked and os.path.exists(noise_picked):
     st.warning('Processor intensive step, this will take a lot of time!!')
 
     n_grad_freq = st.slider('how many frequency channels to smooth over with the mask',min_value=0, max_value=10, value=2)
+    n_grad_time= st.slider('how many time channels to smooth over with the mask', min_value=0, max_value=10, value=4)
     n_std_thresh = st.slider('how many standard deviations louder than the mean dB of the noise (at each frequency level) to be considered signal',min_value=1.0,max_value=5.0,step=.5,value=1.15)
     prop_decrease = st.slider('To what extent should you decrease noise',min_value=0.0,max_value=1.0,value=0.95)
     
 
     processbtn = st.button('Remove Noise from Audio')
-    convert_mp3_to_wav(audio_clip,'out.wav')
+    convert_mp3_to_wav(audio_clip,TEMP_FILE)
     if processbtn:
-        data, rate = sf.read('out.wav')
+        data, rate = sf.read(TEMP_FILE)
         ndata, nrate = sf.read(noise_picked)
         
 
@@ -152,11 +158,17 @@ if name and noise_picked and os.path.exists(noise_picked):
                     prop_decrease=prop_decrease,
                     visual=False,
                     n_grad_freq = n_grad_freq,
+                    n_grad_time= n_grad_time,
                 )
-                sf.write("results.wav",output, rate, 'PCM_24')
-                if os.path.exists('results.wav'):
+                save_path = os.path.join(CLEAN_AUDIO_DIR,os.path.splitext(name)[0]+'.wav')
+                sf.write(save_path,output, rate, 'PCM_24')
+                if os.path.exists(save_path):
                     st.header('Noise reduced in file')
-                    st.audio('results.wav')  
+                    st.audio(save_path)  
+                    entry=AudioFile(file_name="cleand_"+name, file_path=save_path, file_extension='.wav')
+                    sess.add(entry)
+                    sess.commit()
+                    st.success('saved to database')
         except Exception as e:
             st.error(e)
             st.error('Retry, with different files') 
